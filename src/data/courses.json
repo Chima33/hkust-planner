@@ -1,0 +1,159 @@
+[
+  {
+    "code": "LIFS 3110",
+    "name": "Biotechnological Application of Recombinant DNA Techniques",
+    "credits": 3,
+    "instructor": "LI, Laam; NGUYEN, Tuan Anh",
+    "sections": [
+      { "sectionId": "T1 + LA1", "times": [{ "day": "MO", "start": 15.0, "end": 15.83, "room": "Lecture Theater D (216)" }, { "day": "TU", "start": 14.0, "end": 17.83, "room": "Rm 4160, Lift 33" }] },
+      { "sectionId": "T1 + LA2", "times": [{ "day": "MO", "start": 15.0, "end": 15.83, "room": "Lecture Theater D (216)" }, { "day": "TU", "start": 14.0, "end": 17.83, "room": "TBA" }] }
+    ]
+  },
+  {
+    "code": "LIFS 3040",
+    "name": "Animal Physiology",
+    "credits": 3,
+    "instructor": "AMIN, Aftab; HUANG, Pingbo",
+    "sections": [
+      { "sectionId": "L1", "times": [{ "day": "MO", "start": 12.0, "end": 13.33, "room": "Rm 2503, Lift 25-26" }, { "day": "WE", "start": 12.0, "end": 13.33, "room": "Rm 2503, Lift 25-26" }] },
+      { "sectionId": "L2", "times": [{ "day": "TU", "start": 9.0, "end": 10.33, "room": "Rm 2503, Lift 25-26" }, { "day": "TH", "start": 9.0, "end": 10.33, "room": "Rm 2503, Lift 25-26" }] }
+    ]
+  },
+  {
+    "code": "LIFS 4370",
+    "name": "Human Genetics and Personalized Medicine",
+    "credits": 3,
+    "instructor": "LEUNG, Yat Hin Nicki; MAK, Ho Yi",
+    "sections": [
+      { "sectionId": "L1", "times": [{ "day": "TU", "start": 12.0, "end": 13.33, "room": "Rm 5583, Lift 29-30" }, { "day": "TH", "start": 12.0, "end": 13.33, "room": "Rm 5583, Lift 29-30" }] }
+    ]
+  },
+  {
+    "code": "CENG 4670",
+    "name": "Pharmaceutical Engineering",
+    "credits": 3,
+    "instructor": "LAKERVELD, Richard",
+    "sections": [
+      { "sectionId": "L1", "times": [{ "day": "WE", "start": 16.5, "end": 17.83, "room": "Rm 1410, Lift 25-26" }, { "day": "FR", "start": 16.5, "end": 17.83, "room": "Rm 1410, Lift 25-26" }] }
+    ]
+  },
+  {
+    "code": "LIFS 4882",
+    "name": "Investigative Pharmacology",
+    "credits": 3,
+    "instructor": "KO, Robert Kam Ming; LAM, Yeung",
+    "sections": [
+      { "sectionId": "T1 + LA1", "times": [{ "day": "TH", "start": 12.0, "end": 12.83, "room": "Rm 4160, Lift 33" }, { "day": "FR", "start": 13.0, "end": 18.83, "room": "Rm 4160, Lift 33" }] }
+    ]
+  },
+  {
+    "code": "CHEM 2210",
+    "name": "Inorganic Chemistry I",
+    "credits": 3,
+    "instructor": "LEUNG, Wa Hung",
+    "sections": [
+      { "sectionId": "L1", "times": [{ "day": "MO", "start": 13.5, "end": 14.83, "room": "Rm 2464, Lift 25-26" }, { "day": "FR", "start": 9.0, "end": 10.33, "room": "Rm 2464, Lift 25-26" }] }
+    ]
+  },
+  {
+    "code": "CHEM 4340",
+    "name": "Bioanalytical Techniques",
+    "credits": 3,
+    "instructor": "WU, Hongkai",
+    "sections": [
+      { "sectionId": "L1", "times": [{ "day": "MO", "start": 13.5, "end": 14.83, "room": "Rm 5560, Lift 27-28" }, { "day": "FR", "start": 9.0, "end": 10.33, "room": "Rm 5560, Lift 27-28" }] }
+    ]
+  },
+  {
+    "code": "HUMA 3900",
+    "name": "Philosophical Inquiry into the Modern World",
+    "credits": 3,
+    "instructor": "NAM, Kyung-ah",
+    "sections": [
+      { "sectionId": "L1", "times": [{ "day": "MO", "start": 16.5, "end": 17.83, "room": "LG5102, Teaching Hub" }, { "day": "FR", "start": 12.0, "end": 13.33, "room": "LG5102, Teaching Hub" }] }
+    ]
+  },
+  {
+    "code": "HUMA 1673",
+    "name": "Art and Digital Culture",
+    "credits": 3,
+    "instructor": "MA, Steve",
+    "sections": [
+      { "sectionId": "L1", "times": [{ "day": "TU", "start": 12.0, "end": 13.33, "room": "Rm 4620, Lift 31-32" }, { "day": "TH", "start": 12.0, "end": 13.33, "room": "Rm 4620, Lift 31-32" }] }
+    ]
+  },
+  {
+    "code": "LANG 1511",
+    "name": "Chinese for Non-Chinese Language Background Students I",
+    "credits": 3,
+    "instructor": "TBA",
+    "sections": [
+      { "sectionId": "T01", "times": [{ "day": "MO", "start": 10.5, "end": 11.83, "room": "Rm 2129A, Lift 19" }, { "day": "WE", "start": 10.5, "end": 11.83, "room": "Rm 2129A, Lift 19" }] },
+      { "sectionId": "T02", "times": [{ "day": "WE", "start": 13.5, "end": 14.83, "room": "Rm 2131A, Lift 19" }, { "day": "FR", "start": 13.5, "end": 14.83, "room": "Rm 2131A, Lift 19" }] },
+      { "sectionId": "T03", "times": [{ "day": "MO", "start": 16.5, "end": 17.83, "room": "Rm 2132A, Lift 19" }, { "day": "FR", "start": 12.0, "end": 13.33, "room": "Rm 2132A, Lift 19" }] },
+      { "sectionId": "T04", "times": [{ "day": "MO", "start": 13.5, "end": 14.83, "room": "Rm 2127B, Lift 19" }, { "day": "FR", "start": 9.0, "end": 10.33, "room": "Rm 2127B, Lift 19" }] },
+      { "sectionId": "T05", "times": [{ "day": "MO", "start": 15.0, "end": 16.33, "room": "Rm 2126B, Lift 19" }, { "day": "FR", "start": 10.5, "end": 11.83, "room": "Rm 2126B, Lift 19" }] }
+    ]
+  },
+  {
+  "code": "HUMA 1301",
+  "name": "World Literature and Film",
+  "credits": 3,
+  "instructor": "TBA",
+  "sections": [
+    {
+      "sectionId": "L1",
+      "times": [
+        {
+          "day": "TH",
+          "start": 15.0,
+          "end": 17.83,
+          "room": "Rm 2465, Lift 25-26"
+        }
+      ]
+    }
+  ]
+},
+{
+  "code": "HUMA 1622",
+  "name": "Science, Technology and Society: Historical and Cultural Approaches",
+  "credits": 3,
+  "instructor": "CHEE, Pui Yee",
+  "sections": [
+    {
+      "sectionId": "L1+T1",
+      "times": [
+        {
+          "day": "FR",
+          "start": 15.0,
+          "end": 16.33,
+          "room": "LG5202, Lift 10-12"
+        },
+        {
+          "day": "WE",
+          "start": 12.0,
+          "end": 13.33,
+          "room": "Rm 4579, Lift 27-28"
+        }
+      ]
+    },
+    {
+      "sectionId": "L1+T2",
+      "times": [
+        {
+          "day": "FR",
+          "start": 15.0,
+          "end": 16.33,
+          "room": "LG5202, Lift 10-12"
+        },
+        {
+          "day": "MO",
+          "start": 9.0,
+          "end": 10.33,
+          "room": "Multi-function Room, LG4, LIB"
+        }
+      ]
+    }
+  ]
+}
+]
