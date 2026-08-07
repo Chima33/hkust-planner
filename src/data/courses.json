@@ -174,5 +174,24 @@
       ]
     }
   ]
+},
+{
+  "code": "UROP 1100T",
+  "name": "Undergraduate Research Opportunities Series 1",
+  "credits": 1,
+  "instructor": "TBA",
+  "sections": [
+    {
+      "sectionId": "R1",
+      "times": [
+        {
+          "day": "TBA",
+          "start": 0,
+          "end": 0,
+          "room": "TBA"
+        }
+      ]
+    }
+  ]
 }
 ]
