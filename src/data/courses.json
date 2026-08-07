@@ -155,5 +155,24 @@
       ]
     }
   ]
+},
+{
+  "code": "DASC 2210",
+  "name": "A Survey on Big Data in Science and Society",
+  "credits": 1,
+  "instructor": "WOON, Wilson",
+  "sections": [
+    {
+      "sectionId": "L1",
+      "times": [
+        {
+          "day": "TH",
+          "start": 13.5,
+          "end": 14.83,
+          "room": "Rm 2464, Lift 25-26"
+        }
+      ]
+    }
+  ]
 }
 ]
