@@ -1,5 +1,5 @@
 [
-  {
+{
     "code": "LIFS 3110",
     "name": "Biotechnological Application of Recombinant DNA Techniques",
     "credits": 3,
@@ -235,6 +235,105 @@
       ]
     }
   ]
-}
-
+ },
+{
+  "code": "HUMA 2588",
+  "name": "Nazism and German Society, 1914-1945",
+  "credits": 3,
+  "instructor": "DERMAN, Joshua",
+  "sections": [
+    {
+      "sectionId": "L1",
+      "times": [
+        {
+          "day": "MO",
+          "start": 16.5,
+          "end": 17.83,
+          "room": "Rm 2465, Lift 25-26"
+        },
+        {
+          "day": "FR",
+          "start": 12.0,
+          "end": 13.33,
+          "room": "Rm 2465, Lift 25-26"
+        }
+      ]
+    }
+  ]
+},
+{
+  "code": "HUMA 2638",
+  "name": "Peoples and Cultures in Southeast Asia",
+  "credits": 3,
+  "instructor": "MA, Jianxiong",
+  "sections": [
+    {
+      "sectionId": "L1+T1",
+      "times": [
+        {
+          "day": "TU",
+          "start": 12.0,
+          "end": 13.83,
+          "room": "G002, CYT Bldg"
+        },
+        {
+          "day": "TU",
+          "start": 14.0,
+          "end": 14.83,
+          "room": "G002, CYT Bldg"
+        }
+      ]
+    }
+  ]
+},
+{
+  "code": "HUMA 2921",
+  "name": "Ethical Theories and Contemporary Issues",
+  "credits": 3,
+  "instructor": "NAM, Kyung-ah",
+  "sections": [
+    {
+      "sectionId": "L1",
+      "times": [
+        {
+          "day": "WE",
+          "start": 13.5,
+          "end": 14.83,
+          "room": "Rm 2464, Lift 25-26"
+        },
+        {
+          "day": "FR",
+          "start": 13.5,
+          "end": 14.83,
+          "room": "Rm 2464, Lift 25-26"
+        }
+      ]
+    }
+  ]
+},
+{
+  "code": "HUMA 2440",
+  "name": "20th-Century China in Documentary Films",
+  "credits": 3,
+  "instructor": "CHANG, David Cheng",
+  "sections": [
+    {
+      "sectionId": "L1+T1",
+      "times": [
+        {
+          "day": "MO",
+          "start": 12.0,
+          "end": 13.83,
+          "room": "Rm 4619, Lift 31-32"
+        },
+        {
+          "day": "MO",
+          "start": 14.0,
+          "end": 14.83,
+          "room": "Rm 4619, Lift 31-32"
+        }
+      ]
+    }
+  ]
+ }
 ]
