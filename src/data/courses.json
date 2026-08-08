@@ -193,5 +193,48 @@
       ]
     }
   ]
+},
+{
+  "code": "HUMA 1676",
+  "name": "Marco Polo and His Book of Travels",
+  "credits": 3,
+  "instructor": "CABOARA, Marco",
+  "sections": [
+    {
+      "sectionId": "L1",
+      "times": [
+        {
+          "day": "MO",
+          "start": 15.0,
+          "end": 16.33,
+          "room": "Rm 2465, Lift 25-26"
+        },
+        {
+          "day": "FR",
+          "start": 10.5,
+          "end": 11.83,
+          "room": "Rm 2465, Lift 25-26"
+        }
+      ]
+    },
+    {
+      "sectionId": "L2",
+      "times": [
+        {
+          "day": "MO",
+          "start": 13.5,
+          "end": 14.83,
+          "room": "Rm 4580, Lift 27-28"
+        },
+        {
+          "day": "FR",
+          "start": 9.0,
+          "end": 10.33,
+          "room": "Rm 4580, Lift 27-28"
+        }
+      ]
+    }
+  ]
 }
+
 ]
