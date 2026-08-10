@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
-import { Search, Plus, Trash2, Calendar, AlertCircle, Clock, MapPin, User, Upload } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Search, Plus, Trash2, Calendar, AlertCircle, Clock, MapPin, User, Upload, Download, FileImage, FileText, X } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import coursesData from './data/courses.json'; 
 import { generateBestSchedules, findConflictDetails } from './utils/optimizer';
-import { parseHKUSTTable } from './utils/htmlParser'; // NEW IMPORT
 
 const PALETTE = [
-  { bg: 'bg-blue-50', text: 'text-blue-900', border: 'border-blue-500', btn: 'bg-blue-500 hover:bg-blue-600' },
-  { bg: 'bg-emerald-50', text: 'text-emerald-900', border: 'border-emerald-500', btn: 'bg-emerald-500 hover:bg-emerald-600' },
-  { bg: 'bg-violet-50', text: 'text-violet-900', border: 'border-violet-500', btn: 'bg-violet-500 hover:bg-violet-600' },
-  { bg: 'bg-amber-50', text: 'text-amber-900', border: 'border-amber-500', btn: 'bg-amber-500 hover:bg-amber-600' },
-  { bg: 'bg-rose-50', text: 'text-rose-900', border: 'border-rose-500', btn: 'bg-rose-500 hover:bg-rose-600' },
-  { bg: 'bg-cyan-50', text: 'text-cyan-900', border: 'border-cyan-500', btn: 'bg-cyan-500 hover:bg-cyan-600' },
+  { bg: 'bg-blue-50', text: 'text-blue-900', border: 'border-blue-500' },
+  { bg: 'bg-emerald-50', text: 'text-emerald-900', border: 'border-emerald-500' },
+  { bg: 'bg-violet-50', text: 'text-violet-900', border: 'border-violet-500' },
+  { bg: 'bg-amber-50', text: 'text-amber-900', border: 'border-amber-500' },
+  { bg: 'bg-rose-50', text: 'text-rose-900', border: 'border-rose-500' },
+  { bg: 'bg-cyan-50', text: 'text-cyan-900', border: 'border-cyan-500' },
 ];
 
 const getCourseStyle = (code) => {
@@ -19,7 +20,16 @@ const getCourseStyle = (code) => {
   return PALETTE[Math.abs(hash) % PALETTE.length];
 };
 
+// Helper to convert "14:30" to 14.5
+const convertTimeToDecimal = (timeStr) => {
+  if (!timeStr) return 0;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours + (minutes / 60);
+};
+
 export default function App() {
+  // Initialize courses from JSON, but allow adding more
+  const [allCourses, setAllCourses] = useState(coursesData);
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [generatedSchedules, setGeneratedSchedules] = useState([]);
@@ -27,12 +37,17 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState('');
   const [preferences, setPreferences] = useState({});
   
-  // NEW: State for the HTML Parser Modal
-  const [showParser, setShowParser] = useState(false);
-  const [htmlInput, setHtmlInput] = useState('');
-  const [parseMsg, setParseMsg] = useState('');
+  // Modal States
+  const [showAddModal, setShowAddModal] = useState(false);
+  const timetableRef = useRef(null);
 
-  const filteredCourses = coursesData.filter(c => 
+  // New Course Form State
+  const [newCourse, setNewCourse] = useState({
+    code: '', name: '', credits: 3, instructor: '',
+    sections: [{ sectionId: '', times: [{ day: 'MO', start: '09:00', end: '10:20', room: '' }] }]
+  });
+
+  const filteredCourses = allCourses.filter(c => 
     c.code.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -68,18 +83,85 @@ export default function App() {
     }
   };
 
-  // NEW: Handle the bulk import
-  const handleBulkImport = () => {
-    try {
-      const parsed = parseHKUSTTable(htmlInput);
-      if (parsed.length === 0) {
-        setParseMsg('No courses found. Make sure you copied the HTML table correctly.');
-      } else {
-        setParseMsg(`Success! Parsed ${parsed.length} courses. (Note: To use them, you would need to save them to your courses.json file).`);
-      }
-    } catch (error) {
-      setParseMsg('Error parsing HTML. Please check the format.');
+  // --- Add Course Logic ---
+  const handleAddSection = () => {
+    setNewCourse({ ...newCourse, sections: [...newCourse.sections, { sectionId: '', times: [{ day: 'MO', start: '09:00', end: '10:20', room: '' }] }] });
+  };
+
+  const handleAddTimeSlot = (sectionIndex) => {
+    const updatedSections = [...newCourse.sections];
+    updatedSections[sectionIndex].times.push({ day: 'MO', start: '09:00', end: '10:20', room: '' });
+    setNewCourse({ ...newCourse, sections: updatedSections });
+  };
+
+  const updateSectionId = (index, value) => {
+    const updatedSections = [...newCourse.sections];
+    updatedSections[index].sectionId = value;
+    setNewCourse({ ...newCourse, sections: updatedSections });
+  };
+
+  const updateTimeSlot = (sectionIndex, timeIndex, field, value) => {
+    const updatedSections = [...newCourse.sections];
+    updatedSections[sectionIndex].times[timeIndex][field] = value;
+    setNewCourse({ ...newCourse, sections: updatedSections });
+  };
+
+  const removeTimeSlot = (sectionIndex, timeIndex) => {
+    const updatedSections = [...newCourse.sections];
+    updatedSections[sectionIndex].times.splice(timeIndex, 1);
+    setNewCourse({ ...newCourse, sections: updatedSections });
+  };
+
+  const submitNewCourse = () => {
+    if (!newCourse.code || !newCourse.name) {
+      alert("Please fill in Course Code and Name.");
+      return;
     }
+
+    // Format times to decimal
+    const formattedSections = newCourse.sections.map(sec => ({
+      sectionId: sec.sectionId || 'L1',
+      times: sec.times.map(t => ({
+        day: t.day,
+        start: convertTimeToDecimal(t.start),
+        end: convertTimeToDecimal(t.end),
+        room: t.room
+      }))
+    }));
+
+    const courseToAdd = {
+      code: newCourse.code.toUpperCase(),
+      name: newCourse.name,
+      credits: parseInt(newCourse.credits) || 3,
+      instructor: newCourse.instructor || 'TBA',
+      sections: formattedSections
+    };
+
+    setAllCourses([...allCourses, courseToAdd]);
+    setShowAddModal(false);
+    setNewCourse({ code: '', name: '', credits: 3, instructor: '', sections: [{ sectionId: '', times: [{ day: 'MO', start: '09:00', end: '10:20', room: '' }] }] });
+    alert("Course added successfully! You can now search for it.");
+  };
+
+  // --- Export Logic ---
+  const exportAsPNG = async () => {
+    const element = timetableRef.current;
+    const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+    const link = document.createElement('a');
+    link.download = `hkust-timetable-option-${activeTab + 1}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+
+  const exportAsPDF = async () => {
+    const element = timetableRef.current;
+    const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('l', 'mm', 'a4'); // Landscape A4
+    const imgWidth = 270;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    pdf.addImage(imgData, 'PNG', 15, 15, imgWidth, imgHeight);
+    pdf.save(`hkust-timetable-option-${activeTab + 1}.pdf`);
   };
 
   const timeSlots = [];
@@ -145,12 +227,11 @@ export default function App() {
                 />
               </div>
 
-              {/* NEW: Bulk Import Button */}
               <button 
-                onClick={() => { setShowParser(true); setParseMsg(''); }}
-                className="w-full mb-6 flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-100 transition-colors border border-indigo-100"
+                onClick={() => setShowAddModal(true)}
+                className="w-full mb-6 flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-100 transition-colors border border-emerald-100"
               >
-                <Upload className="w-4 h-4" /> Bulk Import from HKUST Website
+                <Plus className="w-4 h-4" /> Add New Course Manually
               </button>
               
               <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
@@ -171,7 +252,7 @@ export default function App() {
                             disabled={isAdded}
                             className={`p-1.5 rounded-lg transition-all ${isAdded ? 'bg-green-100 text-green-600 cursor-default' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
                           >
-                            <Plus className="w-4 h-4" />
+                            {isAdded ? <Plus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                           </button>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">{course.name}</p>
@@ -211,16 +292,13 @@ export default function App() {
                   {cart.map(course => {
                     const style = getCourseStyle(course.code);
                     const uniqueRooms = [...new Set(course.sections.flatMap(s => s.times.map(t => t.room)))].join(', ');
-                    
                     return (
                       <li key={course.code} className={`bg-slate-50 p-4 rounded-xl border-l-4 ${style.border} border-y border-r border-slate-200`}>
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-bold text-slate-900">{course.code}</span>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
-                                {course.credits} UNITS
-                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>{course.credits} UNITS</span>
                             </div>
                             <p className="text-xs text-slate-600 leading-snug">{course.name}</p>
                           </div>
@@ -228,12 +306,10 @@ export default function App() {
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
-                        
                         <div className="grid grid-cols-2 gap-2 mb-3 text-xs text-slate-500">
                           <div className="flex items-center gap-1.5"><User className="w-3 h-3" /> {course.instructor || 'TBA'}</div>
                           <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {uniqueRooms}</div>
                         </div>
-
                         <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-200">
                           <Clock className="w-4 h-4 text-slate-400 ml-1" />
                           <select 
@@ -244,11 +320,7 @@ export default function App() {
                             <option value="AUTO">Auto-Optimize (Best Fit)</option>
                             {course.sections.map(sec => {
                               const timeStr = sec.times.map(t => `${t.day} ${formatTime(t.start)}-${formatTime(t.end)}`).join(', ');
-                              return (
-                                <option key={sec.sectionId} value={sec.sectionId}>
-                                  {sec.sectionId} — {timeStr}
-                                </option>
-                              );
+                              return <option key={sec.sectionId} value={sec.sectionId}>{sec.sectionId} — {timeStr}</option>;
                             })}
                           </select>
                         </div>
@@ -270,56 +342,52 @@ export default function App() {
             {/* Timetable Display */}
             {generatedSchedules.length > 0 && (
               <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 overflow-hidden">
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
                   <h2 className="text-lg font-semibold text-slate-900">Generated Options</h2>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     {generatedSchedules.map((sched, idx) => (
                       <button 
                         key={idx} 
                         onClick={() => setActiveTab(idx)}
-                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                          activeTab === idx ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
+                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${activeTab === idx ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                       >
                         Option {idx + 1}
                       </button>
                     ))}
                   </div>
+                  {/* Export Buttons */}
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <button onClick={exportAsPNG} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors">
+                      <FileImage className="w-4 h-4" /> PNG
+                    </button>
+                    <button onClick={exportAsPDF} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors">
+                      <FileText className="w-4 h-4" /> PDF
+                    </button>
+                  </div>
                 </div>
 
-                <div className="overflow-x-auto pb-4">
+                <div className="overflow-x-auto pb-4" ref={timetableRef}>
                   <div className="grid grid-cols-6 gap-0 text-center text-xs min-w-[850px]">
                     <div className="font-semibold text-slate-400 py-3 text-[10px] uppercase tracking-wider">Time</div>
                     {["MO", "TU", "WE", "TH", "FR"].map(d => (
                       <div key={d} className="font-bold text-slate-700 py-3 border-b border-slate-200">{d}</div>
                     ))}
-                    
                     {timeSlots.map((hour, index) => (
                       <React.Fragment key={hour}>
                         <div className={`text-right pr-3 text-slate-400 font-medium text-[10px] ${index % 2 === 0 ? 'py-1' : 'h-10 flex items-end justify-end pb-1'}`}>
                           {index % 2 === 0 ? formatTime(hour) : ''}
                         </div>
                         {["MO", "TU", "WE", "TH", "FR"].map(day => {
-                          const classesHere = generatedSchedules[activeTab].schedule.filter(c => 
-                            c.times.some(t => t.day === day && t.start <= hour && t.end > hour)
-                          );
+                          const classesHere = generatedSchedules[activeTab].schedule.filter(c => c.times.some(t => t.day === day && t.start <= hour && t.end > hour));
                           const isStart = classesHere.some(c => c.times.find(t => t.day === day && t.start === hour));
-                          
                           return (
-                            <div 
-                              key={`${day}-${hour}`} 
-                              className={`h-10 border-t border-slate-100 relative ${index % 2 === 0 ? 'border-slate-200' : ''}`}
-                            >
+                            <div key={`${day}-${hour}`} className={`h-10 border-t border-slate-100 relative ${index % 2 === 0 ? 'border-slate-200' : ''}`}>
                               {isStart && classesHere.map(c => {
                                 const t = c.times.find(t => t.day === day && t.start === hour);
                                 const height = (t.end - t.start) * 5;
                                 const style = getCourseStyle(c.code);
                                 return (
-                                  <div 
-                                    key={c.code} 
-                                    className={`absolute inset-x-1 ${style.bg} ${style.text} border-l-4 ${style.border} p-1.5 rounded-md shadow-sm overflow-hidden flex flex-col justify-center transition-transform hover:scale-[1.02]`}
-                                    style={{ height: `${height}rem`, zIndex: 10 }}
-                                  >
+                                  <div key={c.code} className={`absolute inset-x-1 ${style.bg} ${style.text} border-l-4 ${style.border} p-1.5 rounded-md shadow-sm overflow-hidden flex flex-col justify-center transition-transform hover:scale-[1.02]`} style={{ height: `${height}rem`, zIndex: 10 }}>
                                     <div className="font-bold text-[11px] leading-tight truncate">{c.code}</div>
                                     <div className="text-[9px] leading-tight opacity-80 truncate">{t.room}</div>
                                   </div>
@@ -338,56 +406,89 @@ export default function App() {
         </div>
       </main>
 
-      {/* NEW: Bulk Import Modal */}
-      {showParser && (
+      {/* Add Course Modal */}
+      {showAddModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Upload className="w-5 h-5 text-indigo-500" /> Bulk Import Courses
-              </h3>
-              <button onClick={() => setShowParser(false)} className="text-slate-400 hover:text-slate-600">
-                <Trash2 className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-4">
-              <p className="text-sm text-indigo-900 font-medium mb-2">How to use:</p>
-              <ol className="text-xs text-indigo-800 space-y-1 list-decimal list-inside">
-                <li>Go to the HKUST course catalog website.</li>
-                <li>Highlight the course table, right-click, and select <strong>"Inspect"</strong>.</li>
-                <li>Right-click the highlighted HTML table code and select <strong>"Copy" → "Copy outerHTML"</strong>.</li>
-                <li>Paste it into the box below.</li>
-              </ol>
+          <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-slate-900">Add New Course</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
             </div>
 
-            <textarea
-              value={htmlInput}
-              onChange={(e) => setHtmlInput(e.target.value)}
-              className="w-full h-48 p-3 border border-slate-300 rounded-xl font-mono text-xs mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              placeholder="<table>...</table>"
-            />
-            
-            {parseMsg && (
-              <div className={`p-3 rounded-lg text-sm mb-4 ${parseMsg.includes('Success') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
-                {parseMsg}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Course Code *</label>
+                  <input type="text" value={newCourse.code} onChange={(e) => setNewCourse({...newCourse, code: e.target.value})} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g. COMP 102" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Credits</label>
+                  <input type="number" value={newCourse.credits} onChange={(e) => setNewCourse({...newCourse, credits: e.target.value})} className="w-full p-2 border rounded-lg text-sm" />
+                </div>
               </div>
-            )}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Course Name *</label>
+                <input type="text" value={newCourse.name} onChange={(e) => setNewCourse({...newCourse, name: e.target.value})} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g. Introduction to Computer Science" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Instructor</label>
+                <input type="text" value={newCourse.instructor} onChange={(e) => setNewCourse({...newCourse, instructor: e.target.value})} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g. Prof. Smith" />
+              </div>
 
-            <div className="flex gap-3 justify-end">
-              <button 
-                onClick={() => setShowParser(false)}
-                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleBulkImport}
-                disabled={!htmlInput}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:bg-slate-300 transition-colors"
-              >
-                Parse HTML
-              </button>
+              <div className="border-t pt-4 mt-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="font-semibold text-slate-800">Sections (Lectures/Tutorials)</h4>
+                  <button onClick={handleAddSection} className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg hover:bg-indigo-100">+ Add Section</button>
+                </div>
+                
+                {newCourse.sections.map((section, sIdx) => (
+                  <div key={sIdx} className="bg-slate-50 p-4 rounded-xl mb-3 border border-slate-200">
+                    <div className="flex gap-4 mb-3">
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Section ID</label>
+                        <input type="text" value={section.sectionId} onChange={(e) => updateSectionId(sIdx, e.target.value)} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g. L1 or T1" />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-xs font-medium text-slate-700">Time Slots</label>
+                        <button onClick={() => handleAddTimeSlot(sIdx)} className="text-xs text-indigo-600 hover:text-indigo-800">+ Add Time</button>
+                      </div>
+                      {section.times.map((time, tIdx) => (
+                        <div key={tIdx} className="grid grid-cols-5 gap-2 items-end bg-white p-2 rounded-lg border border-slate-200">
+                          <div>
+                            <label className="block text-[10px] text-slate-500 mb-1">Day</label>
+                            <select value={time.day} onChange={(e) => updateTimeSlot(sIdx, tIdx, 'day', e.target.value)} className="w-full p-1 border rounded text-xs">
+                              {['MO','TU','WE','TH','FR'].map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-500 mb-1">Start</label>
+                            <input type="time" value={time.start} onChange={(e) => updateTimeSlot(sIdx, tIdx, 'start', e.target.value)} className="w-full p-1 border rounded text-xs" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-500 mb-1">End</label>
+                            <input type="time" value={time.end} onChange={(e) => updateTimeSlot(sIdx, tIdx, 'end', e.target.value)} className="w-full p-1 border rounded text-xs" />
+                          </div>
+                          <div className="col-span-1">
+                            <label className="block text-[10px] text-slate-500 mb-1">Room</label>
+                            <input type="text" value={time.room} onChange={(e) => updateTimeSlot(sIdx, tIdx, 'room', e.target.value)} className="w-full p-1 border rounded text-xs" placeholder="Rm 1234" />
+                          </div>
+                          <div className="flex justify-center">
+                            <button onClick={() => removeTimeSlot(sIdx, tIdx)} className="text-red-500 hover:text-red-700 p-1"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end mt-6 pt-4 border-t">
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium">Cancel</button>
+              <button onClick={submitNewCourse} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700">Save Course</button>
             </div>
           </div>
         </div>
