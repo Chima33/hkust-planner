@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Search, Plus, Trash2, Calendar, AlertCircle, Clock, MapPin, User, X, FileImage, FileText } from 'lucide-react';
+import { Search, Plus, Trash2, Calendar, AlertCircle, Clock, MapPin, User, X, FileImage, FileText, Pencil } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import coursesData from './data/courses.json'; 
@@ -26,6 +26,12 @@ const convertTimeToDecimal = (timeStr) => {
   return hours + (minutes / 60);
 };
 
+const formatDecimalToTime = (decimal) => {
+  const h = Math.floor(decimal);
+  const m = Math.round((decimal % 1) * 60);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+};
+
 export default function App() {
   const [allCourses, setAllCourses] = useState(coursesData);
   const [cart, setCart] = useState([]);
@@ -35,6 +41,7 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState('');
   const [preferences, setPreferences] = useState({});
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingCode, setEditingCode] = useState(null); // Tracks if we are editing
   const timetableRef = useRef(null);
 
   const [newCourse, setNewCourse] = useState({
@@ -76,6 +83,36 @@ export default function App() {
       setGeneratedSchedules(best);
       setActiveTab(0);
     }
+  };
+
+  // --- Catalog Management Logic ---
+  const handleDeleteCourse = (code) => {
+    if (window.confirm(`Are you sure you want to delete ${code} from the catalog?`)) {
+      setAllCourses(allCourses.filter(c => c.code !== code));
+      setCart(cart.filter(c => c.code !== code)); // Remove from cart if it was there
+    }
+  };
+
+  const handleEditCourse = (course) => {
+    setEditingCode(course.code);
+    // Convert decimal times back to HH:MM for the input fields
+    const formattedSections = course.sections.map(sec => ({
+      sectionId: sec.sectionId,
+      times: sec.times.map(t => ({
+        day: t.day,
+        start: formatDecimalToTime(t.start),
+        end: formatDecimalToTime(t.end),
+        room: t.room
+      }))
+    }));
+    setNewCourse({
+      code: course.code,
+      name: course.name,
+      credits: course.credits,
+      instructor: course.instructor,
+      sections: formattedSections
+    });
+    setShowAddModal(true);
   };
 
   const handleAddSection = () => {
@@ -127,91 +164,55 @@ export default function App() {
       instructor: newCourse.instructor || 'TBA',
       sections: formattedSections
     };
-    setAllCourses([...allCourses, courseToAdd]);
+
+    if (editingCode) {
+      // Update existing course
+      setAllCourses(allCourses.map(c => c.code === editingCode ? courseToAdd : c));
+      // Also update it in the cart if it's currently selected
+      setCart(cart.map(c => c.code === editingCode ? courseToAdd : c));
+      setEditingCode(null);
+    } else {
+      // Add new course
+      if (allCourses.find(c => c.code === courseToAdd.code)) {
+        alert("A course with this code already exists!");
+        return;
+      }
+      setAllCourses([...allCourses, courseToAdd]);
+    }
+    
     setShowAddModal(false);
     setNewCourse({ code: '', name: '', credits: 3, instructor: '', sections: [{ sectionId: '', times: [{ day: 'MO', start: '09:00', end: '10:20', room: '' }] }] });
-    alert("Course added successfully! You can now search for it.");
   };
 
-  // --- FIXED EXPORT FUNCTIONS ---
+  // --- Export Logic ---
   const exportAsPNG = async () => {
     if (!timetableRef.current) return;
     const element = timetableRef.current;
-    
-    // 1. Save current styles
-    const originalOverflow = element.style.overflow;
-    const originalWidth = element.style.width;
-    
-    // 2. Force the container to show all content (no scrolling)
-    element.style.overflow = 'visible';
-    element.style.width = `${element.scrollWidth}px`;
-    
+    const originalStyle = { overflow: element.style.overflow, width: element.style.width, height: element.style.height };
+    element.style.overflow = 'visible'; element.style.width = 'auto'; element.style.height = 'auto';
     try {
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
-      });
-      
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff', windowWidth: element.scrollWidth, windowHeight: element.scrollHeight });
       const link = document.createElement('a');
       link.download = `hkust-timetable-option-${activeTab + 1}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert('Export failed. Please try again.');
-    } finally {
-      // 3. Restore original styles
-      element.style.overflow = originalOverflow;
-      element.style.width = originalWidth;
-    }
+    } catch (error) { console.error('Export failed:', error); }
+    finally { element.style.overflow = originalStyle.overflow; element.style.width = originalStyle.width; element.style.height = originalStyle.height; }
   };
 
   const exportAsPDF = async () => {
     if (!timetableRef.current) return;
     const element = timetableRef.current;
-    
-    // 1. Save current styles
-    const originalOverflow = element.style.overflow;
-    const originalWidth = element.style.width;
-    
-    // 2. Force the container to show all content (no scrolling)
-    element.style.overflow = 'visible';
-    element.style.width = `${element.scrollWidth}px`;
-    
+    const originalStyle = { overflow: element.style.overflow, width: element.style.width, height: element.style.height };
+    element.style.overflow = 'visible'; element.style.width = 'auto'; element.style.height = 'auto';
     try {
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
-      });
-      
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff', windowWidth: element.scrollWidth, windowHeight: element.scrollHeight });
       const imgData = canvas.toDataURL('image/png');
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      
-      const pdf = new jsPDF({
-        orientation: imgWidth > imgHeight ? 'landscape' : 'portrait',
-        unit: 'px',
-        format: [imgWidth, imgHeight],
-      });
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      const pdf = new jsPDF({ orientation: canvas.width > canvas.height ? 'landscape' : 'portrait', unit: 'px', format: [canvas.width, canvas.height] });
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
       pdf.save(`hkust-timetable-option-${activeTab + 1}.pdf`);
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert('Export failed. Please try again.');
-    } finally {
-      // 3. Restore original styles
-      element.style.overflow = originalOverflow;
-      element.style.width = originalWidth;
-    }
+    } catch (error) { console.error('Export failed:', error); }
+    finally { element.style.overflow = originalStyle.overflow; element.style.width = originalStyle.width; element.style.height = originalStyle.height; }
   };
 
   const timeSlots = [];
@@ -276,7 +277,7 @@ export default function App() {
               </div>
 
               <button 
-                onClick={() => setShowAddModal(true)}
+                onClick={() => { setEditingCode(null); setShowAddModal(true); }}
                 className="w-full mb-6 flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-100 transition-colors border border-emerald-100"
               >
                 <Plus className="w-4 h-4" /> Add New Course Manually
@@ -291,17 +292,26 @@ export default function App() {
                     return (
                       <div key={course.code} className="group bg-slate-50 hover:bg-white border border-transparent hover:border-slate-200 p-3 rounded-xl transition-all duration-200 hover:shadow-md">
                         <div className="flex justify-between items-start mb-1">
-                          <div>
+                          <div className="flex-1">
                             <span className="font-bold text-slate-900 text-sm">{course.code}</span>
                             <span className="text-xs text-slate-500 ml-2">{course.credits} Units</span>
                           </div>
-                          <button 
-                            onClick={() => addToCart(course)}
-                            disabled={isAdded}
-                            className={`p-1.5 rounded-lg transition-all ${isAdded ? 'bg-green-100 text-green-600 cursor-default' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
+                          <div className="flex gap-1">
+                            <button onClick={() => handleEditCourse(course)} className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all" title="Edit Course">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteCourse(course.code)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-all" title="Delete Course">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => addToCart(course)}
+                              disabled={isAdded}
+                              className={`p-1.5 rounded-lg transition-all ${isAdded ? 'bg-green-100 text-green-600 cursor-default' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                              title="Add to Cart"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">{course.name}</p>
                       </div>
@@ -411,7 +421,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* The ref is attached here. This div has overflow-x-auto */}
                 <div ref={timetableRef} className="overflow-x-auto pb-4">
                   <div className="grid grid-cols-6 gap-0 text-center text-xs min-w-[850px]">
                     <div className="font-semibold text-slate-400 py-3 text-[10px] uppercase tracking-wider">Time</div>
@@ -456,8 +465,8 @@ export default function App() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-slate-900">Add New Course</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+              <h3 className="text-xl font-bold text-slate-900">{editingCode ? 'Edit Course' : 'Add New Course'}</h3>
+              <button onClick={() => { setShowAddModal(false); setEditingCode(null); }} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -527,8 +536,8 @@ export default function App() {
               </div>
             </div>
             <div className="flex gap-3 justify-end mt-6 pt-4 border-t">
-              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium">Cancel</button>
-              <button onClick={submitNewCourse} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700">Save Course</button>
+              <button onClick={() => { setShowAddModal(false); setEditingCode(null); }} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium">Cancel</button>
+              <button onClick={submitNewCourse} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700">{editingCode ? 'Save Changes' : 'Save Course'}</button>
             </div>
           </div>
         </div>
