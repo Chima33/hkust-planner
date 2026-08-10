@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Search, Plus, Trash2, Calendar, AlertCircle, Clock, MapPin, User, X, FileImage, FileText, Pencil } from 'lucide-react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { Search, Plus, Trash2, Calendar, AlertCircle, Clock, MapPin, User, X, FileImage, FileText, Pencil, AlertTriangle } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import coursesData from './data/courses.json'; 
@@ -33,7 +33,39 @@ const formatDecimalToTime = (decimal) => {
 };
 
 export default function App() {
-  const [allCourses, setAllCourses] = useState(coursesData);
+  // Load saved courses and deleted codes from localStorage
+  const [savedCourses, setSavedCourses] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('hkust_custom_courses')) || [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [deletedCodes, setDeletedCodes] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('hkust_deleted_courses')) || [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Merge default courses with saved courses, and filter out deleted ones
+  const allCourses = useMemo(() => {
+    const map = new Map(coursesData.map(c => [c.code, c]));
+    savedCourses.forEach(c => map.set(c.code, c));
+    return Array.from(map.values()).filter(c => !deletedCodes.includes(c.code));
+  }, [savedCourses, deletedCodes]);
+
+  // Save to localStorage whenever savedCourses or deletedCodes change
+  useEffect(() => {
+    localStorage.setItem('hkust_custom_courses', JSON.stringify(savedCourses));
+  }, [savedCourses]);
+
+  useEffect(() => {
+    localStorage.setItem('hkust_deleted_courses', JSON.stringify(deletedCodes));
+  }, [deletedCodes]);
+
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [generatedSchedules, setGeneratedSchedules] = useState([]);
@@ -41,7 +73,9 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState('');
   const [preferences, setPreferences] = useState({});
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingCode, setEditingCode] = useState(null); // Tracks if we are editing
+  const [editingCode, setEditingCode] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState(null);
   const timetableRef = useRef(null);
 
   const [newCourse, setNewCourse] = useState({
@@ -85,17 +119,33 @@ export default function App() {
     }
   };
 
-  // --- Catalog Management Logic ---
-  const handleDeleteCourse = (code) => {
-    if (window.confirm(`Are you sure you want to delete ${code} from the catalog?`)) {
-      setAllCourses(allCourses.filter(c => c.code !== code));
-      setCart(cart.filter(c => c.code !== code)); // Remove from cart if it was there
+  const requestDeleteCourse = (course) => {
+    setCourseToDelete(course);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteCourse = () => {
+    if (!courseToDelete) return;
+    const code = courseToDelete.code;
+    
+    // Remove from savedCourses if it's there
+    setSavedCourses(prev => prev.filter(c => c.code !== code));
+    
+    // If it's a default course, add to deletedCodes
+    const isDefault = coursesData.some(c => c.code === code);
+    if (isDefault) {
+      setDeletedCodes(prev => [...new Set([...prev, code])]);
     }
+    
+    // Remove from cart if present
+    setCart(cart.filter(c => c.code !== code));
+    
+    setShowDeleteModal(false);
+    setCourseToDelete(null);
   };
 
   const handleEditCourse = (course) => {
     setEditingCode(course.code);
-    // Convert decimal times back to HH:MM for the input fields
     const formattedSections = course.sections.map(sec => ({
       sectionId: sec.sectionId,
       times: sec.times.map(t => ({
@@ -166,9 +216,11 @@ export default function App() {
     };
 
     if (editingCode) {
-      // Update existing course
-      setAllCourses(allCourses.map(c => c.code === editingCode ? courseToAdd : c));
-      // Also update it in the cart if it's currently selected
+      // Update existing course in savedCourses
+      setSavedCourses(prev => {
+        const filtered = prev.filter(c => c.code !== editingCode);
+        return [...filtered, courseToAdd];
+      });
       setCart(cart.map(c => c.code === editingCode ? courseToAdd : c));
       setEditingCode(null);
     } else {
@@ -177,14 +229,15 @@ export default function App() {
         alert("A course with this code already exists!");
         return;
       }
-      setAllCourses([...allCourses, courseToAdd]);
+      // Remove from deletedCodes if it was previously deleted
+      setDeletedCodes(prev => prev.filter(code => code !== courseToAdd.code));
+      setSavedCourses(prev => [...prev, courseToAdd]);
     }
     
     setShowAddModal(false);
     setNewCourse({ code: '', name: '', credits: 3, instructor: '', sections: [{ sectionId: '', times: [{ day: 'MO', start: '09:00', end: '10:20', room: '' }] }] });
   };
 
-  // --- Export Logic ---
   const exportAsPNG = async () => {
     if (!timetableRef.current) return;
     const element = timetableRef.current;
@@ -289,18 +342,20 @@ export default function App() {
                 ) : (
                   filteredCourses.map(course => {
                     const isAdded = cart.find(c => c.code === course.code);
+                    const isSaved = savedCourses.some(c => c.code === course.code);
                     return (
                       <div key={course.code} className="group bg-slate-50 hover:bg-white border border-transparent hover:border-slate-200 p-3 rounded-xl transition-all duration-200 hover:shadow-md">
                         <div className="flex justify-between items-start mb-1">
                           <div className="flex-1">
                             <span className="font-bold text-slate-900 text-sm">{course.code}</span>
                             <span className="text-xs text-slate-500 ml-2">{course.credits} Units</span>
+                            {isSaved && <span className="text-[10px] text-emerald-600 ml-2 font-medium">(Custom)</span>}
                           </div>
                           <div className="flex gap-1">
                             <button onClick={() => handleEditCourse(course)} className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all" title="Edit Course">
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
-                            <button onClick={() => handleDeleteCourse(course.code)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-all" title="Delete Course">
+                            <button onClick={() => requestDeleteCourse(course)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-all" title="Delete Course">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                             <button 
@@ -461,6 +516,7 @@ export default function App() {
         </div>
       </main>
 
+      {/* Add/Edit Course Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -538,6 +594,40 @@ export default function App() {
             <div className="flex gap-3 justify-end mt-6 pt-4 border-t">
               <button onClick={() => { setShowAddModal(false); setEditingCode(null); }} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium">Cancel</button>
               <button onClick={submitNewCourse} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700">{editingCode ? 'Save Changes' : 'Save Course'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && courseToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-red-100 p-3 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Delete Course?</h3>
+            </div>
+            <p className="text-slate-600 mb-6">
+              Are you sure you want to delete <span className="font-bold text-slate-900">{courseToDelete.code}</span> - {courseToDelete.name}? 
+              {savedCourses.some(c => c.code === courseToDelete.code) 
+                ? " This will permanently remove it from your custom courses." 
+                : " This will hide it from the catalog."}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button 
+                onClick={() => { setShowDeleteModal(false); setCourseToDelete(null); }} 
+                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDeleteCourse} 
+                className="px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" /> Delete
+              </button>
             </div>
           </div>
         </div>
