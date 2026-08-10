@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Search, Plus, Trash2, Calendar, AlertCircle, Clock, MapPin, User, Upload, Download, FileImage, FileText, X } from 'lucide-react';
+import { Search, Plus, Trash2, Calendar, AlertCircle, Clock, MapPin, User, X, FileImage, FileText } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import coursesData from './data/courses.json'; 
@@ -20,7 +20,6 @@ const getCourseStyle = (code) => {
   return PALETTE[Math.abs(hash) % PALETTE.length];
 };
 
-// Helper to convert "14:30" to 14.5
 const convertTimeToDecimal = (timeStr) => {
   if (!timeStr) return 0;
   const [hours, minutes] = timeStr.split(':').map(Number);
@@ -28,7 +27,6 @@ const convertTimeToDecimal = (timeStr) => {
 };
 
 export default function App() {
-  // Initialize courses from JSON, but allow adding more
   const [allCourses, setAllCourses] = useState(coursesData);
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -36,12 +34,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   const [preferences, setPreferences] = useState({});
-  
-  // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
   const timetableRef = useRef(null);
 
-  // New Course Form State
   const [newCourse, setNewCourse] = useState({
     code: '', name: '', credits: 3, instructor: '',
     sections: [{ sectionId: '', times: [{ day: 'MO', start: '09:00', end: '10:20', room: '' }] }]
@@ -83,7 +78,6 @@ export default function App() {
     }
   };
 
-  // --- Add Course Logic ---
   const handleAddSection = () => {
     setNewCourse({ ...newCourse, sections: [...newCourse.sections, { sectionId: '', times: [{ day: 'MO', start: '09:00', end: '10:20', room: '' }] }] });
   };
@@ -117,8 +111,6 @@ export default function App() {
       alert("Please fill in Course Code and Name.");
       return;
     }
-
-    // Format times to decimal
     const formattedSections = newCourse.sections.map(sec => ({
       sectionId: sec.sectionId || 'L1',
       times: sec.times.map(t => ({
@@ -128,7 +120,6 @@ export default function App() {
         room: t.room
       }))
     }));
-
     const courseToAdd = {
       code: newCourse.code.toUpperCase(),
       name: newCourse.name,
@@ -136,32 +127,91 @@ export default function App() {
       instructor: newCourse.instructor || 'TBA',
       sections: formattedSections
     };
-
     setAllCourses([...allCourses, courseToAdd]);
     setShowAddModal(false);
     setNewCourse({ code: '', name: '', credits: 3, instructor: '', sections: [{ sectionId: '', times: [{ day: 'MO', start: '09:00', end: '10:20', room: '' }] }] });
     alert("Course added successfully! You can now search for it.");
   };
 
-  // --- Export Logic ---
+  // --- FIXED EXPORT FUNCTIONS ---
   const exportAsPNG = async () => {
+    if (!timetableRef.current) return;
     const element = timetableRef.current;
-    const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-    const link = document.createElement('a');
-    link.download = `hkust-timetable-option-${activeTab + 1}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    
+    // 1. Save current styles
+    const originalOverflow = element.style.overflow;
+    const originalWidth = element.style.width;
+    
+    // 2. Force the container to show all content (no scrolling)
+    element.style.overflow = 'visible';
+    element.style.width = `${element.scrollWidth}px`;
+    
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+      });
+      
+      const link = document.createElement('a');
+      link.download = `hkust-timetable-option-${activeTab + 1}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+    } finally {
+      // 3. Restore original styles
+      element.style.overflow = originalOverflow;
+      element.style.width = originalWidth;
+    }
   };
 
   const exportAsPDF = async () => {
+    if (!timetableRef.current) return;
     const element = timetableRef.current;
-    const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('l', 'mm', 'a4'); // Landscape A4
-    const imgWidth = 270;
-    const imgHeight = canvas.height * imgWidth / canvas.width;
-    pdf.addImage(imgData, 'PNG', 15, 15, imgWidth, imgHeight);
-    pdf.save(`hkust-timetable-option-${activeTab + 1}.pdf`);
+    
+    // 1. Save current styles
+    const originalOverflow = element.style.overflow;
+    const originalWidth = element.style.width;
+    
+    // 2. Force the container to show all content (no scrolling)
+    element.style.overflow = 'visible';
+    element.style.width = `${element.scrollWidth}px`;
+    
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      
+      const pdf = new jsPDF({
+        orientation: imgWidth > imgHeight ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [imgWidth, imgHeight],
+      });
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.save(`hkust-timetable-option-${activeTab + 1}.pdf`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+    } finally {
+      // 3. Restore original styles
+      element.style.overflow = originalOverflow;
+      element.style.width = originalWidth;
+    }
   };
 
   const timeSlots = [];
@@ -177,7 +227,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -209,7 +258,6 @@ export default function App() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Column: Search & Add */}
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
@@ -252,7 +300,7 @@ export default function App() {
                             disabled={isAdded}
                             className={`p-1.5 rounded-lg transition-all ${isAdded ? 'bg-green-100 text-green-600 cursor-default' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
                           >
-                            {isAdded ? <Plus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                            <Plus className="w-4 h-4" />
                           </button>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">{course.name}</p>
@@ -264,7 +312,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Right Column: Cart & Preferences */}
           <div className="lg:col-span-7 space-y-6">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <div className="flex justify-between items-center mb-6">
@@ -339,9 +386,8 @@ export default function App() {
               </button>
             </div>
 
-            {/* Timetable Display */}
             {generatedSchedules.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
                 <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
                   <h2 className="text-lg font-semibold text-slate-900">Generated Options</h2>
                   <div className="flex gap-2 flex-wrap">
@@ -355,7 +401,6 @@ export default function App() {
                       </button>
                     ))}
                   </div>
-                  {/* Export Buttons */}
                   <div className="flex gap-2 w-full sm:w-auto">
                     <button onClick={exportAsPNG} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors">
                       <FileImage className="w-4 h-4" /> PNG
@@ -366,7 +411,8 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto pb-4" ref={timetableRef}>
+                {/* The ref is attached here. This div has overflow-x-auto */}
+                <div ref={timetableRef} className="overflow-x-auto pb-4">
                   <div className="grid grid-cols-6 gap-0 text-center text-xs min-w-[850px]">
                     <div className="font-semibold text-slate-400 py-3 text-[10px] uppercase tracking-wider">Time</div>
                     {["MO", "TU", "WE", "TH", "FR"].map(d => (
@@ -387,9 +433,9 @@ export default function App() {
                                 const height = (t.end - t.start) * 5;
                                 const style = getCourseStyle(c.code);
                                 return (
-                                  <div key={c.code} className={`absolute inset-x-1 ${style.bg} ${style.text} border-l-4 ${style.border} p-1.5 rounded-md shadow-sm overflow-hidden flex flex-col justify-center transition-transform hover:scale-[1.02]`} style={{ height: `${height}rem`, zIndex: 10 }}>
-                                    <div className="font-bold text-[11px] leading-tight truncate">{c.code}</div>
-                                    <div className="text-[9px] leading-tight opacity-80 truncate">{t.room}</div>
+                                  <div key={c.code} className={`absolute inset-x-1 ${style.bg} ${style.text} border-l-4 ${style.border} p-1.5 rounded-md shadow-sm flex flex-col justify-center`} style={{ height: `${height}rem`, zIndex: 10 }}>
+                                    <div className="font-bold text-[11px] leading-tight break-words">{c.code}</div>
+                                    <div className="text-[9px] leading-tight opacity-80 break-words">{t.room}</div>
                                   </div>
                                 );
                               })}
@@ -406,7 +452,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* Add Course Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -414,7 +459,6 @@ export default function App() {
               <h3 className="text-xl font-bold text-slate-900">Add New Course</h3>
               <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
             </div>
-
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -434,13 +478,11 @@ export default function App() {
                 <label className="block text-xs font-medium text-slate-700 mb-1">Instructor</label>
                 <input type="text" value={newCourse.instructor} onChange={(e) => setNewCourse({...newCourse, instructor: e.target.value})} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g. Prof. Smith" />
               </div>
-
               <div className="border-t pt-4 mt-4">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="font-semibold text-slate-800">Sections (Lectures/Tutorials)</h4>
                   <button onClick={handleAddSection} className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg hover:bg-indigo-100">+ Add Section</button>
                 </div>
-                
                 {newCourse.sections.map((section, sIdx) => (
                   <div key={sIdx} className="bg-slate-50 p-4 rounded-xl mb-3 border border-slate-200">
                     <div className="flex gap-4 mb-3">
@@ -449,7 +491,6 @@ export default function App() {
                         <input type="text" value={section.sectionId} onChange={(e) => updateSectionId(sIdx, e.target.value)} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g. L1 or T1" />
                       </div>
                     </div>
-                    
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <label className="text-xs font-medium text-slate-700">Time Slots</label>
@@ -485,7 +526,6 @@ export default function App() {
                 ))}
               </div>
             </div>
-
             <div className="flex gap-3 justify-end mt-6 pt-4 border-t">
               <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium">Cancel</button>
               <button onClick={submitNewCourse} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700">Save Course</button>
