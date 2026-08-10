@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Search, Plus, Trash2, Calendar, AlertCircle, Clock, MapPin, User, X, FileImage, FileText, Pencil, AlertTriangle } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -32,39 +32,52 @@ const formatDecimalToTime = (decimal) => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 };
 
+// --- NEW: Smart Grouping Logic ---
+const getCourseOptions = (course) => {
+  // 1. If sections are already manually bundled (contain '+'), return them as is
+  if (course.sections.some(s => s.sectionId.includes('+'))) {
+    return course.sections;
+  }
+
+  // 2. Separate Lectures (L1, L01) and Tutorials/Labs (T1, LA1)
+  const lectures = course.sections.filter(s => /^L\d/i.test(s.sectionId));
+  const tutorials = course.sections.filter(s => /^T\d/i.test(s.sectionId) || /^LA\d/i.test(s.sectionId));
+
+  // 3. If no tutorials, just return lectures (and vice versa)
+  if (tutorials.length === 0) return lectures;
+  if (lectures.length === 0) return tutorials;
+
+  // 4. Generate all valid combinations (Cartesian product)
+  const combinations = [];
+  lectures.forEach(l => {
+    tutorials.forEach(t => {
+      combinations.push({
+        sectionId: `${l.sectionId} + ${t.sectionId}`,
+        times: [...l.times, ...t.times]
+      });
+    });
+  });
+  
+  return combinations;
+};
+
 export default function App() {
-  // Load saved courses and deleted codes from localStorage
   const [savedCourses, setSavedCourses] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('hkust_custom_courses')) || [];
-    } catch {
-      return [];
-    }
+    try { return JSON.parse(localStorage.getItem('hkust_custom_courses')) || []; } catch { return []; }
   });
 
   const [deletedCodes, setDeletedCodes] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('hkust_deleted_courses')) || [];
-    } catch {
-      return [];
-    }
+    try { return JSON.parse(localStorage.getItem('hkust_deleted_courses')) || []; } catch { return []; }
   });
 
-  // Merge default courses with saved courses, and filter out deleted ones
-  const allCourses = useMemo(() => {
+  const allCourses = React.useMemo(() => {
     const map = new Map(coursesData.map(c => [c.code, c]));
     savedCourses.forEach(c => map.set(c.code, c));
     return Array.from(map.values()).filter(c => !deletedCodes.includes(c.code));
   }, [savedCourses, deletedCodes]);
 
-  // Save to localStorage whenever savedCourses or deletedCodes change
-  useEffect(() => {
-    localStorage.setItem('hkust_custom_courses', JSON.stringify(savedCourses));
-  }, [savedCourses]);
-
-  useEffect(() => {
-    localStorage.setItem('hkust_deleted_courses', JSON.stringify(deletedCodes));
-  }, [deletedCodes]);
+  useEffect(() => { localStorage.setItem('hkust_custom_courses', JSON.stringify(savedCourses)); }, [savedCourses]);
+  useEffect(() => { localStorage.setItem('hkust_deleted_courses', JSON.stringify(deletedCodes)); }, [deletedCodes]);
 
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -107,9 +120,17 @@ export default function App() {
   };
 
   const handleGenerate = () => {
-    const best = generateBestSchedules(cart, preferences);
+    // 1. Process the cart to create L+T bundles
+    const processedCart = cart.map(course => {
+      const options = getCourseOptions(course);
+      return { ...course, sections: options };
+    });
+
+    // 2. Run optimizer on the processed cart
+    const best = generateBestSchedules(processedCart, preferences);
+    
     if (best.length === 0) {
-      const conflictDetails = findConflictDetails(cart, preferences);
+      const conflictDetails = findConflictDetails(processedCart, preferences);
       setErrorMsg(`Schedule Conflict: ${conflictDetails}`);
       setGeneratedSchedules([]);
     } else {
@@ -127,19 +148,10 @@ export default function App() {
   const confirmDeleteCourse = () => {
     if (!courseToDelete) return;
     const code = courseToDelete.code;
-    
-    // Remove from savedCourses if it's there
     setSavedCourses(prev => prev.filter(c => c.code !== code));
-    
-    // If it's a default course, add to deletedCodes
     const isDefault = coursesData.some(c => c.code === code);
-    if (isDefault) {
-      setDeletedCodes(prev => [...new Set([...prev, code])]);
-    }
-    
-    // Remove from cart if present
+    if (isDefault) setDeletedCodes(prev => [...new Set([...prev, code])]);
     setCart(cart.filter(c => c.code !== code));
-    
     setShowDeleteModal(false);
     setCourseToDelete(null);
   };
@@ -156,11 +168,8 @@ export default function App() {
       }))
     }));
     setNewCourse({
-      code: course.code,
-      name: course.name,
-      credits: course.credits,
-      instructor: course.instructor,
-      sections: formattedSections
+      code: course.code, name: course.name, credits: course.credits,
+      instructor: course.instructor, sections: formattedSections
     });
     setShowAddModal(true);
   };
@@ -194,29 +203,18 @@ export default function App() {
   };
 
   const submitNewCourse = () => {
-    if (!newCourse.code || !newCourse.name) {
-      alert("Please fill in Course Code and Name.");
-      return;
-    }
+    if (!newCourse.code || !newCourse.name) { alert("Please fill in Course Code and Name."); return; }
     const formattedSections = newCourse.sections.map(sec => ({
       sectionId: sec.sectionId || 'L1',
-      times: sec.times.map(t => ({
-        day: t.day,
-        start: convertTimeToDecimal(t.start),
-        end: convertTimeToDecimal(t.end),
-        room: t.room
-      }))
+      times: sec.times.map(t => ({ day: t.day, start: convertTimeToDecimal(t.start), end: convertTimeToDecimal(t.end), room: t.room }))
     }));
     const courseToAdd = {
-      code: newCourse.code.toUpperCase(),
-      name: newCourse.name,
-      credits: parseInt(newCourse.credits) || 3,
-      instructor: newCourse.instructor || 'TBA',
+      code: newCourse.code.toUpperCase(), name: newCourse.name,
+      credits: parseInt(newCourse.credits) || 3, instructor: newCourse.instructor || 'TBA',
       sections: formattedSections
     };
 
     if (editingCode) {
-      // Update existing course in savedCourses
       setSavedCourses(prev => {
         const filtered = prev.filter(c => c.code !== editingCode);
         return [...filtered, courseToAdd];
@@ -224,16 +222,10 @@ export default function App() {
       setCart(cart.map(c => c.code === editingCode ? courseToAdd : c));
       setEditingCode(null);
     } else {
-      // Add new course
-      if (allCourses.find(c => c.code === courseToAdd.code)) {
-        alert("A course with this code already exists!");
-        return;
-      }
-      // Remove from deletedCodes if it was previously deleted
+      if (allCourses.find(c => c.code === courseToAdd.code)) { alert("A course with this code already exists!"); return; }
       setDeletedCodes(prev => prev.filter(code => code !== courseToAdd.code));
       setSavedCourses(prev => [...prev, courseToAdd]);
     }
-    
     setShowAddModal(false);
     setNewCourse({ code: '', name: '', credits: 3, instructor: '', sections: [{ sectionId: '', times: [{ day: 'MO', start: '09:00', end: '10:20', room: '' }] }] });
   };
@@ -404,6 +396,9 @@ export default function App() {
                   {cart.map(course => {
                     const style = getCourseStyle(course.code);
                     const uniqueRooms = [...new Set(course.sections.flatMap(s => s.times.map(t => t.room)))].join(', ');
+                    // Get the available options for this course (L+T bundles)
+                    const courseOptions = getCourseOptions(course);
+                    
                     return (
                       <li key={course.code} className={`bg-slate-50 p-4 rounded-xl border-l-4 ${style.border} border-y border-r border-slate-200`}>
                         <div className="flex justify-between items-start mb-3">
@@ -430,9 +425,9 @@ export default function App() {
                             className="flex-1 bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer"
                           >
                             <option value="AUTO">Auto-Optimize (Best Fit)</option>
-                            {course.sections.map(sec => {
-                              const timeStr = sec.times.map(t => `${t.day} ${formatTime(t.start)}-${formatTime(t.end)}`).join(', ');
-                              return <option key={sec.sectionId} value={sec.sectionId}>{sec.sectionId} — {timeStr}</option>;
+                            {courseOptions.map(opt => {
+                              const timeStr = opt.times.map(t => `${t.day} ${formatTime(t.start)}-${formatTime(t.end)}`).join(', ');
+                              return <option key={opt.sectionId} value={opt.sectionId}>{opt.sectionId} — {timeStr}</option>;
                             })}
                           </select>
                         </div>
@@ -516,7 +511,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* Add/Edit Course Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -599,7 +593,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteModal && courseToDelete && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
